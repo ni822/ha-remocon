@@ -11,6 +11,9 @@ from urllib.parse import quote
 import requests
 
 from .const import (
+    DEFAULT_SYSTEM_TYPE,
+    SYSTEM_BOILER,
+    SYSTEM_HEAT_PUMP,
     MODE_AUTOMATIC,
     MODE_COMFORT,
     MODE_PROTECTION,
@@ -41,6 +44,27 @@ FEATURES_PAYLOAD = {
     "hasZeroColdWaterProg": False, "weatherProvider": 0,
     "hasDhwTimeProgTemperatures": 2, "isGSWHCommercialAloneOnBus": False,
 }
+
+
+def build_features(system_type: str = DEFAULT_SYSTEM_TYPE) -> dict:
+    """Return the features payload matching the type of heat generator.
+
+    The Remocon-Net backend uses this payload to decide which data points
+    exist. A heat pump and a conventional (oil/gas) boiler differ in the
+    ``hpSys`` / ``convBoiler`` flags.
+    """
+    features = dict(FEATURES_PAYLOAD)
+    features["zones"] = [dict(z) for z in FEATURES_PAYLOAD["zones"]]
+    if system_type == SYSTEM_BOILER:
+        features.update({
+            "convBoiler": True,   # conventional boiler (oil / gas)
+            "hpSys": False,
+            "hybridSys": False,
+            "hasBoiler": True,
+            "hasTwoCoolingTemp": False,
+            "distinctHeatCoolSetpoints": False,
+        })
+    return features
 
 
 class RemoconApiError(Exception):
@@ -81,7 +105,11 @@ class RemoconData:
     dhw_temp: float = 0.0
     dhw_comfort_temp: float = 0.0
     dhw_reduced_temp: float = 0.0
+    dhw_comfort_temp_min: float = 30.0
+    dhw_comfort_temp_max: float = 65.0
+    dhw_comfort_temp_step: float = 1.0
     dhw_mode: int = 0
+    dhw_mode_options: list[tuple[int, str]] = field(default_factory=list)
     dhw_enabled: bool = False
     heat_pump_on: bool = False
     flame_sensor: bool = False
@@ -90,16 +118,41 @@ class RemoconData:
     flow_temperature: Optional[float] = None
     # Meta
     has_room_sensor: bool = False
+    system_type: str = DEFAULT_SYSTEM_TYPE
+
+    @property
+    def is_boiler(self) -> bool:
+        """True for oil/gas boilers (no heat pump, no cooling)."""
+        return self.system_type == SYSTEM_BOILER
+
+    @property
+    def has_dhw(self) -> bool:
+        """True when the system reports a domestic hot water circuit."""
+        return self.dhw_enabled or self.dhw_temp > 0 or self.dhw_comfort_temp > 0
+
+    @property
+    def burner_on(self) -> bool:
+        """Burner is firing (flame detected)."""
+        return self.flame_sensor
 
 
 class RemoconClient:
     """Synchronous API client for Elco Remocon-Net."""
 
-    def __init__(self, email: str, password: str, gateway_id: str, zone: str = "1") -> None:
-        self._email = email
+    def __init__(
+        self,
+        email: str,
+        password: str,
+        gateway_id: str,
+        zone: str = "1",
+        system_type: str = DEFAULT_SYSTEM_TYPE,
+    ) -> None:
+        self._system_type = system_type
+        self._features = build_features(system_type)
+        self._email = email.strip()
         self._password = password
-        self._gateway_id = gateway_id
-        self._zone = zone
+        self._gateway_id = gateway_id.strip()
+        self._zone = str(zone).strip() or "1"
         self._session: Optional[requests.Session] = None
 
     def login(self) -> None:
@@ -139,7 +192,7 @@ class RemoconClient:
             self.login()
         return self._session  # type: ignore[return-value]
 
-    def _request(self, method: str, path: str, **kwargs: Any) -> Any:
+    def _request(self, method: str, path: str, *, log_errors: bool = True, **kwargs: Any) -> Any:
         s = self._get_session()
         url = f"{BASE_URL}{path}"
         kwargs.setdefault("timeout", 15)
@@ -152,7 +205,9 @@ class RemoconClient:
             err_msg = str(err)
             if getattr(err, "response", None) is not None:
                 err_msg += f" - Response: {err.response.text}"
-            _LOGGER.error("API Request failed: %s", err_msg)
+            (_LOGGER.error if log_errors else _LOGGER.debug)(
+                "API Request failed (%s %s): %s", method, path.split("?")[0], err_msg
+            )
             raise RemoconConnectionError(err_msg) from err
         
         try:
@@ -161,15 +216,32 @@ class RemoconClient:
             _LOGGER.error("Invalid JSON response from API: %s", resp.text)
             raise RemoconDataError("Could not parse API response") from err
 
+    # "PlantHome" works for boilers and most gateways; "PlantHomeBsb" is the
+    # fallback for BSB-bus heat pumps that answer 500 on the former.
+    _PLANT_ENDPOINTS = ("PlantHome", "PlantHomeBsb")
+
     def _get_raw(self) -> dict:
-        path = f"/R2/PlantHome/GetData/{self._gateway_id}?umsys=si"
         payload = {
             "useCache": True,
             "zone": int(self._zone),
-            "filter": {"notEssentials": False, "plant": True, "zone": True, "dhw": True},
-            "features": FEATURES_PAYLOAD,
+            "filter": {"progIds": None, "notEssentials": False,
+                       "plant": True, "zone": True, "dhw": True},
+            "features": self._features,
         }
-        data = self._request("POST", path, json=payload)
+        last_err: Exception | None = None
+        data: Any = None
+        for endpoint in self._PLANT_ENDPOINTS:
+            path = f"/R2/{endpoint}/GetData/{self._gateway_id}?umsys=si"
+            try:
+                data = self._request("POST", path, json=payload)
+            except RemoconConnectionError as err:
+                last_err = err
+                continue
+            if data:
+                break
+        else:
+            if last_err is not None:
+                raise last_err
         if not data:
             raise RemoconDataError("Empty data received from API")
         if isinstance(data, dict) and not data.get("ok", True):
@@ -182,10 +254,10 @@ class RemoconClient:
         payload = {
             "useCache": False,
             "items": item_ids,
-            "features": FEATURES_PAYLOAD,
+            "features": self._features,
             "culture": "de",
         }
-        data = self._request("POST", path, json=payload)
+        data = self._request("POST", path, json=payload, log_errors=False)
         return {item["id"]: item.get("value") for item in data.get("items", [])} if isinstance(data, dict) else {}
 
     def get_data(self) -> RemoconData:
@@ -217,6 +289,13 @@ class RemoconClient:
         dhw_reduced = plant.get("dhwReducedTemp") or {}
         dhw_mode_info = plant.get("dhwMode") or {}
 
+        dhw_options: list[tuple[int, str]] = []
+        for opt in dhw_mode_info.get("options") or []:
+            try:
+                dhw_options.append((int(opt["value"]), str(opt.get("text", opt["value"]))))
+            except (KeyError, TypeError, ValueError):
+                continue
+
         return RemoconData(
             comfort_temp=float(ch_comfort.get("value", 0)),
             comfort_temp_min=float(ch_comfort.get("min", 5)),
@@ -228,19 +307,30 @@ class RemoconClient:
             zone_mode=mode_info.get("value", MODE_AUTOMATIC),
             zone_mode_texts=mode_info.get("allowedOptionTexts", []),
             heating_active=bool(zone.get("isHeatingActive", 0)),
-            cooling_active=bool(zone.get("isCoolingActive", 0)),
+            cooling_active=(
+                False if self._system_type == SYSTEM_BOILER
+                else bool(zone.get("isCoolingActive", 0))
+            ),
             heat_or_cool_request=bool(zone.get("heatOrCoolRequest", 0)),
             outside_temp=float(plant.get("outsideTemp", 0)),
             dhw_temp=float(plant.get("dhwStorageTemp", 0)),
             dhw_comfort_temp=float(dhw_comfort.get("value", 0)),
             dhw_reduced_temp=float(dhw_reduced.get("value", 0)),
+            dhw_comfort_temp_min=float(dhw_comfort.get("min", 30)),
+            dhw_comfort_temp_max=float(dhw_comfort.get("max", 65)),
+            dhw_comfort_temp_step=float(dhw_comfort.get("step", 1) or 1),
             dhw_mode=dhw_mode_info.get("value", 0),
+            dhw_mode_options=dhw_options,
             dhw_enabled=bool(plant.get("dhwEnabled", 0)),
-            heat_pump_on=bool(plant.get("heatPumpOn", 0)),
+            heat_pump_on=(
+                False if self._system_type == SYSTEM_BOILER
+                else bool(plant.get("heatPumpOn", 0))
+            ),
             flame_sensor=bool(plant.get("flameSensor", 0)),
             system_pressure=float(pressure) if pressure is not None else None,
             flow_temperature=float(flow) if flow is not None else None,
             has_room_sensor=bool(zone.get("hasRoomSensor", 0)),
+            system_type=self._system_type,
         )
 
     def set_zone_temperatures(

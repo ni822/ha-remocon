@@ -3,6 +3,7 @@
   "password": "your_password",
   "gateway_id": "FFEEBBAA0011",
   "zone_id": "1",
+  "system_type": "heat_pump",
   "base_url": "https://www.remocon-net.remotethermo.com",
   "mqtt_enabled": false,
   "mqtt_host": "192.168.1.100",

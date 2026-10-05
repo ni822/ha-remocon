@@ -3,12 +3,13 @@
     "step": {
       "user": {
         "title": "Remocon-Net (inoffiziell)",
-        "description": "Inoffizielle Integration — verbinde deine Elco Wärmepumpe über die Remocon-Net Cloud.",
+        "description": "Inoffizielle Integration — verbinde deine Elco Wärmepumpe oder Öl-/Gasheizung über die Remocon-Net Cloud.",
         "data": {
           "email": "E-Mail",
           "password": "Passwort",
           "gateway_id": "Gateway ID",
-          "zone": "Zone"
+          "zone": "Zone",
+          "system_type": "Anlagentyp"
         }
       }
     },
@@ -37,6 +38,78 @@
       },
       "dhw_temperature": {
         "name": "Warmwassertemperatur"
+      },
+      "operating_mode": {
+        "name": "Betriebsart",
+        "state": {
+          "protection": "Aus (Frostschutz)",
+          "automatic": "Automatik",
+          "reduced": "Absenkung (Nacht)",
+          "comfort": "Komfort (Tag)"
+        }
+      }
+    },
+    "binary_sensor": {
+      "heating_active": {
+        "name": "Heizbetrieb aktiv"
+      },
+      "cooling_active": {
+        "name": "Kühlbetrieb aktiv"
+      },
+      "heat_pump_on": {
+        "name": "Wärmepumpe läuft"
+      },
+      "burner_on": {
+        "name": "Brenner läuft"
+      },
+      "dhw_enabled": {
+        "name": "Warmwasser aktiviert"
+      }
+    },
+    "button": {
+      "mode_auto": {
+        "name": "Modus: Automatik"
+      },
+      "mode_comfort": {
+        "name": "Modus: Komfort (Tag)"
+      },
+      "mode_reduced": {
+        "name": "Modus: Absenkung (Nacht)"
+      },
+      "mode_protection": {
+        "name": "Modus: Aus (Frostschutz)"
+      },
+      "refresh": {
+        "name": "Jetzt aktualisieren"
+      }
+    },
+    "water_heater": {
+      "dhw": {
+        "name": "Warmwasser"
+      }
+    },
+    "number": {
+      "update_interval": {
+        "name": "Aktualisierungsintervall"
+      }
+    }
+  },
+  "selector": {
+    "system_type": {
+      "options": {
+        "heat_pump": "Wärmepumpe",
+        "boiler": "Öl-/Gaskessel"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Aktualisierungsintervall",
+        "description": "Wie oft die Remocon-Net Cloud abgefragt wird, in Minuten (1 bis 1440).",
+        "data": {
+          "scan_interval": "Aktualisierungsintervall (Minuten)"
+        }
       }
     }
   }

@@ -72,6 +72,19 @@ FEATURES_PAYLOAD = {
     "hasDhwTimeProgTemperatures": 2, "isGSWHCommercialAloneOnBus": False,
 }
 
+def build_features(system_type: str = "heat_pump") -> dict:
+    """Features payload for the given heat generator type."""
+    features = dict(FEATURES_PAYLOAD)
+    features["zones"] = [dict(z) for z in FEATURES_PAYLOAD["zones"]]
+    if system_type == "boiler":
+        features.update({
+            "convBoiler": True, "hpSys": False, "hybridSys": False,
+            "hasBoiler": True, "hasTwoCoolingTemp": False,
+            "distinctHeatCoolSetpoints": False,
+        })
+    return features
+
+
 # ============================================================================
 # Data Models
 # ============================================================================
@@ -83,6 +96,7 @@ class Config:
     gateway_id: str
     zone_id: str = "1"
     base_url: str = DEFAULT_BASE_URL
+    system_type: str = "heat_pump"  # "heat_pump" or "boiler" (oil/gas)
     # MQTT
     mqtt_enabled: bool = False
     mqtt_host: Optional[str] = None
@@ -202,6 +216,9 @@ def build_config(args: argparse.Namespace) -> Config:
     password = _val("password", "password", "REMOCON_PASSWORD")
     gateway_id = _val("gateway", "gateway_id", "REMOCON_GATEWAY")
     zone_id = _val("zone", "zone_id", "REMOCON_ZONE")
+    system_type = _val("system_type", "system_type", "REMOCON_SYSTEM_TYPE") or "heat_pump"
+    if system_type not in ("heat_pump", "boiler"):
+        raise ConfigError("system_type must be 'heat_pump' or 'boiler'")
 
     missing = [f for f, v in [("email", email), ("password", password), ("gateway", gateway_id)] if not v]
     if missing:
@@ -212,6 +229,7 @@ def build_config(args: argparse.Namespace) -> Config:
         password=password,
         gateway_id=gateway_id,
         zone_id=str(zone_id or "1"),
+        system_type=system_type,
         base_url=file_data.get("base_url", DEFAULT_BASE_URL),
         mqtt_enabled=_val("mqtt_enabled", "mqtt_enabled", "REMOCON_MQTT_ENABLED") or False,
         mqtt_host=_val("mqtt_host", "mqtt_host", "REMOCON_MQTT_HOST"),
@@ -283,21 +301,41 @@ class RemoconClient:
 
         if resp.status_code in (401, 403):
             raise SessionExpiredError("Session expired, re-login needed")
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            raise NetworkError(
+                f"HTTP {resp.status_code} for {path} - body: {resp.text[:300]!r}"
+            )
         return resp.json()
 
     # ---- Read operations ----
 
+    # Plant data endpoints, in order of preference. Boilers / non-BSB plants use
+    # "PlantHome", BSB-bus heat pumps may answer on "PlantHomeBsb".
+    PLANT_ENDPOINTS = ("PlantHome", "PlantHomeBsb")
+
     def get_plant_data(self) -> dict:
-        """Fetch plant + zone data via R2 API."""
-        path = f"/R2/PlantHomeBsb/GetData/{self.config.gateway_id}"
+        """Fetch plant + zone data via R2 API (tries both endpoint variants)."""
         payload = {
             "useCache": True,
             "zone": int(self.config.zone_id),
-            "filter": {"progIds": None, "plant": True, "zone": True},
+            "filter": {"progIds": None, "notEssentials": False,
+                       "plant": True, "zone": True, "dhw": True},
+            "features": build_features(self.config.system_type),
         }
-        data = self._request("POST", path, json=payload)
-        return data.get("data", data)
+        last_err: Optional[Exception] = None
+        for endpoint in self.PLANT_ENDPOINTS:
+            path = f"/R2/{endpoint}/GetData/{self.config.gateway_id}?umsys=si"
+            try:
+                data = self._request("POST", path, json=payload)
+            except NetworkError as e:
+                last_err = e
+                continue
+            if isinstance(data, dict) and not data.get("ok", True):
+                last_err = DataError(data.get("message", "API returned error"))
+                continue
+            return data.get("data", data) if isinstance(data, dict) else data
+        assert last_err is not None
+        raise last_err
 
     def get_system_items(self, item_ids: list[dict]) -> dict:
         """Fetch specific data items via the v2 API."""
@@ -305,7 +343,7 @@ class RemoconClient:
         payload = {
             "useCache": False,
             "items": item_ids,
-            "features": FEATURES_PAYLOAD,
+            "features": build_features(self.config.system_type),
             "culture": "de",
         }
         data = self._request("POST", path, json=payload)
@@ -473,7 +511,7 @@ class RemoconClient:
         path = f"/api/v2/remote/dataItems/{self.config.gateway_id}/set?umsys=si"
         payload = {
             "items": [{"id": item_id, "prevValue": old_val, "value": value, "zone": zone}],
-            "features": FEATURES_PAYLOAD,
+            "features": build_features(self.config.system_type),
         }
         self._request("POST", path, json=payload)
         return True
@@ -584,7 +622,10 @@ def display_status(data: HeatingData) -> None:
     print(f"  Heating Active: {'Yes' if data.heating_active else 'No'}")
     print(f"  Cooling Active: {'Yes' if data.cooling_active else 'No'}")
     print(f"  Heat/Cool Req:  {'Yes' if data.heat_or_cool_request else 'No'}")
-    print(f"  Heat Pump:      {'On' if data.heat_pump_on else 'Off'}")
+    if data.boiler_status != "Unknown" and not data.heat_pump_on:
+        print(f"  Burner:         {'On' if data.boiler_status == 'Running' else 'Off'}")
+    else:
+        print(f"  Heat Pump:      {'On' if data.heat_pump_on else 'Off'}")
     print()
 
     print("  Domestic Hot Water")
@@ -681,7 +722,7 @@ def cmd_raw_get(client: RemoconClient, config: Config, args: argparse.Namespace)
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="remocon",
-        description="Control your Elco heat pump via the Remocon-Net cloud API",
+        description="Control your Elco heat pump or oil/gas boiler via the Remocon-Net cloud API",
     )
     # Global config options
     _add_config_args(parser)
@@ -736,6 +777,9 @@ def _add_config_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--password", type=str, help="Remocon-Net password", default=SUP)
     parser.add_argument("--gateway", type=str, help="Gateway ID", default=SUP)
     parser.add_argument("--zone", type=str, help="Zone ID (default: 1)", default=SUP)
+    parser.add_argument("--system-type", type=str, dest="system_type",
+                        choices=["heat_pump", "boiler"], default=SUP,
+                        help="Heat generator type: heat_pump (default) or boiler (oil/gas)")
     parser.add_argument("--config-file", type=str, help="Path to config JSON file", default=SUP)
     parser.add_argument("--mqtt-enabled", action="store_true", dest="mqtt_enabled", default=SUP)
     parser.add_argument("--mqtt-host", type=str, dest="mqtt_host", default=SUP)

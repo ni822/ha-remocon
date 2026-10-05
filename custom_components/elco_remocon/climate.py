@@ -65,12 +65,7 @@ class ElcoClimateEntity(CoordinatorEntity[ElcoRemoconCoordinator], ClimateEntity
         super().__init__(coordinator)
         gw_id = entry.data["gateway_id"]
         self._attr_unique_id = f"{gw_id}_climate_zone_{entry.data.get('zone', '1')}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, gw_id)},
-            "name": "Remocon-Net Heat Pump",
-            "manufacturer": "Elco",
-            "model": "Aerotop SPK",
-        }
+        self._attr_device_info = coordinator.device_info
         self._gw_id = gw_id
 
     @property
@@ -117,7 +112,7 @@ class ElcoClimateEntity(CoordinatorEntity[ElcoRemoconCoordinator], ClimateEntity
             return HVACAction.OFF
         if data.heating_active:
             return HVACAction.HEATING
-        if data.cooling_active:
+        if data.cooling_active and not data.is_boiler:
             return HVACAction.COOLING
         if data.heat_or_cool_request:
             return HVACAction.IDLE

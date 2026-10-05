@@ -2,7 +2,7 @@
   "name": "Remocon-Net (unofficial)",
   "content_in_root": false,
   "country": ["DE", "AT", "CH"],
-  "homeassistant": "2024.1.0",
+  "homeassistant": "2025.2.0",
   "iot_class": "cloud_polling",
   "render_readme": true
 }

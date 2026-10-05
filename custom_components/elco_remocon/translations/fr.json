@@ -1,0 +1,116 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "system_type": "Type d'installation",
+          "email": "E-mail",
+          "password": "Mot de passe",
+          "gateway_id": "ID de la passerelle",
+          "zone": "Zone"
+        },
+        "description": "Intégration non officielle — connectez votre pompe à chaleur ou chaudière mazout/gaz Elco via le cloud Remocon-Net.",
+        "title": "Remocon-Net (non officiel)"
+      }
+    },
+    "error": {
+      "auth": "Échec de la connexion. E-mail ou mot de passe incorrect.",
+      "connection": "Connexion au cloud Remocon-Net impossible.",
+      "no_data": "Aucune donnée reçue de l'installation. L'ID de la passerelle est-il correct ?"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "outside_temperature": {
+        "name": "Température extérieure"
+      },
+      "desired_temperature": {
+        "name": "Température souhaitée"
+      },
+      "reduced_temperature": {
+        "name": "Température réduite"
+      },
+      "flow_temperature": {
+        "name": "Température de départ"
+      },
+      "system_pressure": {
+        "name": "Pression du circuit"
+      },
+      "dhw_temperature": {
+        "name": "Température eau chaude"
+      },
+      "operating_mode": {
+        "name": "Mode de fonctionnement",
+        "state": {
+          "protection": "Arrêt (hors gel)",
+          "automatic": "Auto",
+          "reduced": "Réduit (nuit)",
+          "comfort": "Confort (jour)"
+        }
+      }
+    },
+    "binary_sensor": {
+      "heating_active": {
+        "name": "Chauffage actif"
+      },
+      "cooling_active": {
+        "name": "Refroidissement actif"
+      },
+      "heat_pump_on": {
+        "name": "Pompe à chaleur en marche"
+      },
+      "burner_on": {
+        "name": "Brûleur en marche"
+      },
+      "dhw_enabled": {
+        "name": "Eau chaude activée"
+      }
+    },
+    "button": {
+      "mode_auto": {
+        "name": "Mode : Auto"
+      },
+      "mode_comfort": {
+        "name": "Mode : Confort (jour)"
+      },
+      "mode_reduced": {
+        "name": "Mode : Réduit (nuit)"
+      },
+      "mode_protection": {
+        "name": "Mode : Arrêt (hors gel)"
+      },
+      "refresh": {
+        "name": "Actualiser maintenant"
+      }
+    },
+    "water_heater": {
+      "dhw": {
+        "name": "Eau chaude"
+      }
+    },
+    "number": {
+      "update_interval": {
+        "name": "Fréquence de mise à jour"
+      }
+    }
+  },
+  "selector": {
+    "system_type": {
+      "options": {
+        "heat_pump": "Pompe à chaleur",
+        "boiler": "Chaudière mazout / gaz"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Fréquence de mise à jour",
+        "description": "Fréquence d'interrogation du cloud Remocon-Net, en minutes (1 à 1440).",
+        "data": {
+          "scan_interval": "Fréquence de mise à jour (minutes)"
+        }
+      }
+    }
+  }
+}

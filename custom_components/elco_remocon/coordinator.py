@@ -12,7 +12,18 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import RemoconAuthError, RemoconClient, RemoconConnectionError, RemoconData
-from .const import CONF_GATEWAY_ID, CONF_ZONE, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import (
+    CONF_GATEWAY_ID,
+    CONF_SCAN_INTERVAL,
+    CONF_SYSTEM_TYPE,
+    CONF_ZONE,
+    DEFAULT_SCAN_INTERVAL_MIN,
+    DEFAULT_SYSTEM_TYPE,
+    DOMAIN,
+    MAX_SCAN_INTERVAL_MIN,
+    MIN_SCAN_INTERVAL_MIN,
+    SYSTEM_BOILER,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,12 +36,14 @@ class ElcoRemoconCoordinator(DataUpdateCoordinator[RemoconData]):
         hass: HomeAssistant,
         config_entry: ConfigEntry,
     ) -> None:
+        minutes = int(config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_MIN))
+        minutes = max(MIN_SCAN_INTERVAL_MIN, min(MAX_SCAN_INTERVAL_MIN, minutes))
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
             config_entry=config_entry,
-            update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
+            update_interval=timedelta(minutes=minutes),
             always_update=False,
         )
         self.client = RemoconClient(
@@ -38,7 +51,24 @@ class ElcoRemoconCoordinator(DataUpdateCoordinator[RemoconData]):
             password=config_entry.data[CONF_PASSWORD],
             gateway_id=config_entry.data[CONF_GATEWAY_ID],
             zone=config_entry.data.get(CONF_ZONE, "1"),
+            system_type=config_entry.data.get(CONF_SYSTEM_TYPE, DEFAULT_SYSTEM_TYPE),
         )
+        self.system_type: str = config_entry.data.get(CONF_SYSTEM_TYPE, DEFAULT_SYSTEM_TYPE)
+        self.gateway_id: str = config_entry.data[CONF_GATEWAY_ID]
+
+    @property
+    def device_info(self) -> dict:
+        """Shared device info for all entities of this gateway."""
+        if self.system_type == SYSTEM_BOILER:
+            name, model = "Remocon-Net Oil Boiler", "Oil boiler"
+        else:
+            name, model = "Remocon-Net Heat Pump", "Aerotop SPK"
+        return {
+            "identifiers": {(DOMAIN, self.gateway_id)},
+            "name": name,
+            "manufacturer": "Elco",
+            "model": model,
+        }
 
     async def _async_update_data(self) -> RemoconData:
         """Fetch data from the Remocon-Net cloud API."""

@@ -3,12 +3,13 @@
     "step": {
       "user": {
         "title": "Remocon-Net (unofficial)",
-        "description": "Unofficial integration — connect your Elco heat pump via the Remocon-Net Cloud.",
+        "description": "Unofficial integration — connect your Elco heat pump or oil/gas boiler via the Remocon-Net Cloud.",
         "data": {
           "email": "Email",
           "password": "Password",
           "gateway_id": "Gateway ID",
-          "zone": "Zone"
+          "zone": "Zone",
+          "system_type": "System type"
         }
       }
     },
@@ -37,6 +38,78 @@
       },
       "dhw_temperature": {
         "name": "DHW Temperature"
+      },
+      "operating_mode": {
+        "name": "Operating mode",
+        "state": {
+          "protection": "Off (frost protection)",
+          "automatic": "Auto",
+          "reduced": "Reduced (night)",
+          "comfort": "Comfort (day)"
+        }
+      }
+    },
+    "binary_sensor": {
+      "heating_active": {
+        "name": "Heating active"
+      },
+      "cooling_active": {
+        "name": "Cooling active"
+      },
+      "heat_pump_on": {
+        "name": "Heat pump running"
+      },
+      "burner_on": {
+        "name": "Burner running"
+      },
+      "dhw_enabled": {
+        "name": "DHW enabled"
+      }
+    },
+    "button": {
+      "mode_auto": {
+        "name": "Mode: Auto"
+      },
+      "mode_comfort": {
+        "name": "Mode: Comfort (day)"
+      },
+      "mode_reduced": {
+        "name": "Mode: Reduced (night)"
+      },
+      "mode_protection": {
+        "name": "Mode: Off (frost protection)"
+      },
+      "refresh": {
+        "name": "Refresh now"
+      }
+    },
+    "water_heater": {
+      "dhw": {
+        "name": "Hot water"
+      }
+    },
+    "number": {
+      "update_interval": {
+        "name": "Update interval"
+      }
+    }
+  },
+  "selector": {
+    "system_type": {
+      "options": {
+        "heat_pump": "Heat pump",
+        "boiler": "Oil / gas boiler"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Update interval",
+        "description": "How often the Remocon-Net cloud is polled, in minutes (1 to 1440).",
+        "data": {
+          "scan_interval": "Update interval (minutes)"
+        }
       }
     }
   }

@@ -43,12 +43,21 @@ BINARY_SENSORS: tuple[ElcoBinarySensorDescription, ...] = (
         translation_key="cooling_active",
         device_class=BinarySensorDeviceClass.COLD,
         value_fn=lambda d: d.cooling_active,
+        exists_fn=lambda d: not d.is_boiler,
     ),
     ElcoBinarySensorDescription(
         key="heat_pump_on",
         translation_key="heat_pump_on",
         device_class=BinarySensorDeviceClass.RUNNING,
         value_fn=lambda d: d.heat_pump_on,
+        exists_fn=lambda d: not d.is_boiler,
+    ),
+    ElcoBinarySensorDescription(
+        key="burner_on",
+        translation_key="burner_on",
+        device_class=BinarySensorDeviceClass.RUNNING,
+        value_fn=lambda d: d.burner_on,
+        exists_fn=lambda d: d.is_boiler,
     ),
     ElcoBinarySensorDescription(
         key="dhw_enabled",
@@ -90,12 +99,7 @@ class ElcoBinarySensor(CoordinatorEntity[ElcoRemoconCoordinator], BinarySensorEn
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{gw_id}_{description.key}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, gw_id)},
-            "name": "Remocon-Net Heat Pump",
-            "manufacturer": "Elco",
-            "model": "Aerotop SPK",
-        }
+        self._attr_device_info = coordinator.device_info
 
     @property
     def is_on(self) -> bool | None:

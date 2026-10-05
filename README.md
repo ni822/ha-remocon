@@ -1,6 +1,6 @@
 # ha-remocon
 
-**Unofficial Home Assistant integration for Elco heat pumps via the Remocon-Net cloud service.**
+**Unofficial Home Assistant integration for Elco heat pumps and oil/gas boilers via the Remocon-Net cloud service.**
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz/)
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=macschlingel&repository=ha-remocon&category=integration)
@@ -11,17 +11,22 @@ Control and monitor your Elco heat pump (e.g. Aerotop SPK) through the Remocon-N
 
 ## Features
 
-- **Climate entity** — Set target temperature, switch operation mode (Auto / Heat / Off), presets (Comfort / Reduced)
-- **Sensors** — Outside temperature, flow temperature, target temperature, system pressure
-- **Binary sensors** — Heating active, cooling active, heat pump running
-- **Config flow** — Easy setup directly in the Home Assistant UI
-- **CLI tool** — Standalone `remocon.py` for testing and debugging from the terminal
+- **Oil / gas boiler support** — Choose the system type (heat pump or oil/gas boiler) during setup; cooling and heat pump entities are hidden for boilers and the API requests are adapted to boilers
+- **Binary sensors** — Burner running (flame detected, boilers only)
+- **Hot water** — Water heater entity with tank temperature, comfort setpoint and operation mode (on / off)
+- **Mode buttons** — Auto / Comfort (day) / Reduced (night) / Off (frost protection) in one tap, the active mode is shown by the button icon
+- **Sensors** — Operating mode (Auto / Comfort / Reduced / Off)
+- **Update interval** — Number entity to set how often the cloud is polled, in minutes (1 to 1440), also available in the integration options
+- **Manual refresh** — "Refresh now" button to fetch the data immediately, without waiting for the interval
+- **Robust connection** — Tries both Remocon-Net data endpoints, shows the server's reply on errors, and an optional data call that fails no longer breaks the setup
+- **CLI tool** — `remocon.py` accepts `--system-type boiler` (or `"system_type": "boiler"` in `config.json`)
+- **Translations** — French added; English and German completed
 
 ## Requirements
 
-- Elco heat pump with a Remocon-Net gateway (connected to the internet)
+- Elco heat pump **or oil/gas boiler** with a Remocon-Net gateway (connected to the internet)
 - Remocon-Net account ([remocon-net.remotethermo.com](https://www.remocon-net.remotethermo.com))
-- Home Assistant >= 2024.1.0
+- Home Assistant >= 2025.2.0
 - [HACS](https://hacs.xyz/) installed
 
 ## Installation
@@ -56,6 +61,7 @@ Restart Home Assistant.
    - **Password:** Your Remocon-Net login password
    - **Gateway ID:** Your system's gateway ID (see below)
    - **Zone:** Heating zone (default: 1)
+  - **System type:** `Heat pump` or `Oil / gas boiler`
 
 ### Finding your Gateway ID
 
@@ -116,12 +122,36 @@ python3 remocon.py --config-file config.json raw-get
 python3 remocon.py --config-file config.json status --json
 ```
 
+## Oil / gas boilers
+
+Select **Oil / gas boiler** as *System type* during setup. The integration then:
+
+- sends the boiler feature flags (`convBoiler`) to the Remocon-Net API instead of the heat-pump ones,
+- hides the *cooling active* and *heat pump running* entities,
+- adds `binary_sensor.burner_running` (based on the flame sensor reported by the gateway).
+
+For the CLI, set `"system_type": "boiler"` in `config.json` (or use `--system-type boiler`).
+
+> **Experimental:** the boiler mode has not been verified against a real oil boiler yet. Please run
+> `python3 remocon.py --config-file config.json --system-type boiler raw-get` and attach the output to an issue if some
+> values (flow temperature, pressure, burner) are missing — data point IDs can differ between boiler models.
+> Existing installations keep working unchanged (the default system type is *Heat pump*).
+
+## Hot water, mode buttons and update interval
+
+- **Hot water:** a `water_heater` entity (*Hot water*) shows the tank temperature, sets the comfort setpoint and switches the DHW operation mode. The available modes come from your system (usually `off` / `on`).
+- **Mode buttons:** `Auto`, `Comfort (day)`, `Reduced (night)` and `Off (frost protection)` buttons switch the heating mode in one tap. The `Operating mode` sensor shows which one is active.
+- **Update interval:** an `Update interval` number entity (in the *Configuration* section of the device page, and usable in dashboards) sets how often the cloud is polled, in minutes (1 to 1440, e.g. `60` for once an hour). The same value is available under *Settings → Devices & Services → Remocon-Net → Configure*. Changing it reloads the integration once. Commands you send (temperature, mode) always trigger a refresh.
+- **Manual refresh:** the `Refresh now` button fetches fresh data from Remocon-Net immediately, without waiting for the update interval.
+- **Button state "Unknown":** in Home Assistant a button's state is the time of its last press, so it reads *Unknown* until pressed once. This cannot be changed by an integration. The active mode is shown by the button icon (filled circle) and by the `Operating mode` sensor; hide the state in a tile card with `hide_state: true`.
+
+> Hot-water writes use the same Remocon-Net endpoints as the web app; they are untested on oil boilers. Please open an issue with the log line if a command fails.
+
 ## Known limitations
 
 - **Cloud-dependent:** Control goes through the Remocon-Net cloud. No control possible during internet outages.
-- **Polling:** Data is fetched every 2 minutes (no real-time streaming).
+- **Polling:** Data is fetched every 2 minutes by default (configurable, see above; no real-time streaming).
 - **No room sensor:** If no room thermostat is connected, `current_temperature` shows the target value.
-- **DHW read-only:** Domestic hot water entities are displayed, but DHW control is not yet available through the HA entity (works via CLI).
 
 ## Technical details
 

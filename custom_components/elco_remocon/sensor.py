@@ -39,7 +39,16 @@ class ElcoSensorDescription(SensorEntityDescription):
     exists_fn: Callable[[RemoconData], bool] = lambda _: True
 
 
+ZONE_MODE_STATES = {0: "protection", 1: "automatic", 2: "reduced", 3: "comfort"}
+
 SENSORS: tuple[ElcoSensorDescription, ...] = (
+    ElcoSensorDescription(
+        key="operating_mode",
+        translation_key="operating_mode",
+        device_class=SensorDeviceClass.ENUM,
+        options=list(ZONE_MODE_STATES.values()),
+        value_fn=lambda d: ZONE_MODE_STATES.get(d.zone_mode),
+    ),
     ElcoSensorDescription(
         key="outside_temp",
         translation_key="outside_temperature",
@@ -128,12 +137,7 @@ class ElcoSensor(CoordinatorEntity[ElcoRemoconCoordinator], SensorEntity):
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{gw_id}_{description.key}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, gw_id)},
-            "name": "Remocon-Net Heat Pump",
-            "manufacturer": "Elco",
-            "model": "Aerotop SPK",
-        }
+        self._attr_device_info = coordinator.device_info
 
     @property
     def native_value(self) -> StateType:
