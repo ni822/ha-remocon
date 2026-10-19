@@ -39,7 +39,7 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     coordinator: ElcoRemoconCoordinator = hass.data[DOMAIN][entry.entry_id]
-    if coordinator.data.has_dhw:
+    if coordinator.is_primary and coordinator.data.has_dhw:
         async_add_entities([ElcoWaterHeater(coordinator)])
 
 
@@ -56,7 +56,7 @@ class ElcoWaterHeater(CoordinatorEntity[ElcoRemoconCoordinator], WaterHeaterEnti
 
     def __init__(self, coordinator: ElcoRemoconCoordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.gateway_id}_dhw"
+        self._attr_unique_id = f"{coordinator.uid_prefix}_dhw"
         self._attr_device_info = coordinator.device_info
 
     @property

@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from .api import RemoconClient
-from .const import CONF_GATEWAY_ID, CONF_ZONE, DOMAIN
+from .const import CONF_GATEWAY_ID, CONF_ZONE, DOMAIN, uid_prefix
 from .coordinator import ElcoRemoconCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 def _remove_obsolete_entities(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Drop entities from earlier versions that no longer exist (room temperature sensor, holiday mode)."""
-    gw = entry.data[CONF_GATEWAY_ID]
+    gw = uid_prefix(entry.data[CONF_GATEWAY_ID], entry.data.get(CONF_ZONE, "1"))
     registry = er.async_get(hass)
     for domain, unique_id in (
         ("sensor", f"{gw}_room_temp"),

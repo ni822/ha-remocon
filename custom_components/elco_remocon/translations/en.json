@@ -8,8 +8,9 @@
           "email": "Email",
           "password": "Password",
           "gateway_id": "Gateway ID",
-          "zone": "Zone",
-          "system_type": "System type"
+          "zone": "Zone (1 for the first heating circuit; add the integration again for another zone)",
+          "system_type": "System type",
+          "name": "Name (optional)"
         }
       }
     },

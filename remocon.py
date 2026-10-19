@@ -72,10 +72,14 @@ FEATURES_PAYLOAD = {
     "hasDhwTimeProgTemperatures": 2, "isGSWHCommercialAloneOnBus": False,
 }
 
-def build_features(system_type: str = "heat_pump") -> dict:
-    """Features payload for the given heat generator type."""
+def build_features(system_type: str = "heat_pump", zone: str = "1") -> dict:
+    """Features payload for the given heat generator type and zone (zones 1..N listed)."""
     features = dict(FEATURES_PAYLOAD)
-    features["zones"] = [dict(z) for z in FEATURES_PAYLOAD["zones"]]
+    try:
+        zone_count = max(1, int(zone))
+    except (TypeError, ValueError):
+        zone_count = 1
+    features["zones"] = [dict(FEATURES_PAYLOAD["zones"][0], num=n) for n in range(1, zone_count + 1)]
     if system_type == "boiler":
         features.update({
             "convBoiler": True, "hpSys": False, "hybridSys": False,
@@ -320,7 +324,7 @@ class RemoconClient:
             "zone": int(self.config.zone_id),
             "filter": {"progIds": None, "notEssentials": False,
                        "plant": True, "zone": True, "dhw": True},
-            "features": build_features(self.config.system_type),
+            "features": build_features(self.config.system_type, self.config.zone_id),
         }
         last_err: Optional[Exception] = None
         for endpoint in self.PLANT_ENDPOINTS:
@@ -343,7 +347,7 @@ class RemoconClient:
         payload = {
             "useCache": False,
             "items": item_ids,
-            "features": build_features(self.config.system_type),
+            "features": build_features(self.config.system_type, self.config.zone_id),
             "culture": "de",
         }
         data = self._request("POST", path, json=payload)
@@ -511,7 +515,7 @@ class RemoconClient:
         path = f"/api/v2/remote/dataItems/{self.config.gateway_id}/set?umsys=si"
         payload = {
             "items": [{"id": item_id, "prevValue": old_val, "value": value, "zone": zone}],
-            "features": build_features(self.config.system_type),
+            "features": build_features(self.config.system_type, self.config.zone_id),
         }
         self._request("POST", path, json=payload)
         return True

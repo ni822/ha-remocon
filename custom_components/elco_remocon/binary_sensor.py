@@ -29,6 +29,7 @@ class ElcoBinarySensorDescription(BinarySensorEntityDescription):
     device_class: BinarySensorDeviceClass | None = None
     value_fn: Callable[[RemoconData], bool]
     exists_fn: Callable[[RemoconData], bool] = lambda _: True
+    plant_level: bool = False  # whole-plant value: created once per gateway
 
 
 BINARY_SENSORS: tuple[ElcoBinarySensorDescription, ...] = (
@@ -47,6 +48,7 @@ BINARY_SENSORS: tuple[ElcoBinarySensorDescription, ...] = (
     ),
     ElcoBinarySensorDescription(
         key="heat_pump_on",
+        plant_level=True,
         translation_key="heat_pump_on",
         device_class=BinarySensorDeviceClass.RUNNING,
         value_fn=lambda d: d.heat_pump_on,
@@ -54,6 +56,7 @@ BINARY_SENSORS: tuple[ElcoBinarySensorDescription, ...] = (
     ),
     ElcoBinarySensorDescription(
         key="burner_on",
+        plant_level=True,
         translation_key="burner_on",
         device_class=BinarySensorDeviceClass.RUNNING,
         value_fn=lambda d: d.burner_on,
@@ -61,6 +64,7 @@ BINARY_SENSORS: tuple[ElcoBinarySensorDescription, ...] = (
     ),
     ElcoBinarySensorDescription(
         key="dhw_enabled",
+        plant_level=True,
         translation_key="dhw_enabled",
         value_fn=lambda d: d.dhw_enabled,
     ),
@@ -74,12 +78,12 @@ async def async_setup_entry(
 ) -> None:
     """Set up Elco binary sensors."""
     coordinator: ElcoRemoconCoordinator = hass.data[DOMAIN][entry.entry_id]
-    gw_id = entry.data["gateway_id"]
+    gw_id = coordinator.uid_prefix
 
     entities = [
         ElcoBinarySensor(coordinator, gw_id, desc)
         for desc in BINARY_SENSORS
-        if desc.exists_fn(coordinator.data)
+        if desc.exists_fn(coordinator.data) and (coordinator.is_primary or not desc.plant_level)
     ]
     async_add_entities(entities)
 

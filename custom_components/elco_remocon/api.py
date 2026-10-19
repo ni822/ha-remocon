@@ -46,15 +46,21 @@ FEATURES_PAYLOAD = {
 }
 
 
-def build_features(system_type: str = DEFAULT_SYSTEM_TYPE) -> dict:
+def build_features(system_type: str = DEFAULT_SYSTEM_TYPE, zone: str | int = "1") -> dict:
     """Return the features payload matching the type of heat generator.
 
     The Remocon-Net backend uses this payload to decide which data points
     exist. A heat pump and a conventional (oil/gas) boiler differ in the
-    ``hpSys`` / ``convBoiler`` flags.
+    ``hpSys`` / ``convBoiler`` flags. For zone N > 1 the zone list contains zones
+    1..N, like the web app sends for a plant with several heating circuits.
     """
     features = dict(FEATURES_PAYLOAD)
-    features["zones"] = [dict(z) for z in FEATURES_PAYLOAD["zones"]]
+    template = FEATURES_PAYLOAD["zones"][0]
+    try:
+        zone_count = max(1, int(zone))
+    except (TypeError, ValueError):
+        zone_count = 1
+    features["zones"] = [dict(template, num=n) for n in range(1, zone_count + 1)]
     if system_type == SYSTEM_BOILER:
         features.update({
             "convBoiler": True,   # conventional boiler (oil / gas)
@@ -146,13 +152,17 @@ class RemoconClient:
         gateway_id: str,
         zone: str = "1",
         system_type: str = DEFAULT_SYSTEM_TYPE,
+        fetch_plant_items: bool = True,
     ) -> None:
         self._system_type = system_type
-        self._features = build_features(system_type)
+        # Pressure / flow temperature belong to the whole plant: only one entry per
+        # gateway needs to fetch them.
+        self._fetch_plant_items = fetch_plant_items
         self._email = email.strip()
         self._password = password
         self._gateway_id = gateway_id.strip()
         self._zone = str(zone).strip() or "1"
+        self._features = build_features(system_type, self._zone)
         self._session: Optional[requests.Session] = None
 
     def login(self) -> None:
@@ -271,10 +281,11 @@ class RemoconClient:
 
         sys_items: dict[str, Any] = {}
         try:
-            sys_items = self._get_system_items([
-                {"id": "HeatingCircuitPressure", "zn": 0},
-                {"id": "ChFlowTemp", "zn": 0},
-            ])
+            if self._fetch_plant_items:
+                sys_items = self._get_system_items([
+                    {"id": "HeatingCircuitPressure", "zn": 0},
+                    {"id": "ChFlowTemp", "zn": 0},
+                ])
         except Exception as err:
             _LOGGER.debug("Could not fetch system items from v2 API: %s", err)
 

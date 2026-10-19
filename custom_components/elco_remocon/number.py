@@ -44,7 +44,7 @@ class ElcoUpdateIntervalNumber(CoordinatorEntity[ElcoRemoconCoordinator], Number
     def __init__(self, coordinator: ElcoRemoconCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
         self._entry = entry
-        self._attr_unique_id = f"{coordinator.gateway_id}_update_interval"
+        self._attr_unique_id = f"{coordinator.uid_prefix}_update_interval"
         self._attr_device_info = coordinator.device_info
 
     @property

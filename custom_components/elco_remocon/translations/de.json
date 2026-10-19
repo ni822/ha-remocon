@@ -8,8 +8,9 @@
           "email": "E-Mail",
           "password": "Passwort",
           "gateway_id": "Gateway ID",
-          "zone": "Zone",
-          "system_type": "Anlagentyp"
+          "zone": "Zone (1 für den ersten Heizkreis; Integration erneut hinzufügen für eine weitere Zone)",
+          "system_type": "Anlagentyp",
+          "name": "Name (optional)"
         }
       }
     },

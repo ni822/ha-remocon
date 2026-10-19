@@ -24,3 +24,13 @@ MODE_PROTECTION = 0
 MODE_AUTOMATIC = 1
 MODE_REDUCTION = 2
 MODE_COMFORT = 3
+
+
+def uid_prefix(gateway_id: str, zone: str | int = DEFAULT_ZONE) -> str:
+    """Prefix of entity/entry unique ids. Zone 1 keeps the historical ``<gateway>`` form.
+
+    Other zones use ``<gateway>_zone_<n>``, the same scheme as upstream ha-remocon
+    (identifiers.entity_unique_id), so entities keep their ids if you switch to it.
+    """
+    zone = str(zone).strip() or DEFAULT_ZONE
+    return gateway_id if zone == DEFAULT_ZONE else f"{gateway_id}_zone_{zone}"

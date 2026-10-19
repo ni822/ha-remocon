@@ -6,7 +6,7 @@ import logging
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
+from homeassistant.const import CONF_EMAIL, CONF_NAME, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -23,6 +23,7 @@ from .const import (
     MAX_SCAN_INTERVAL_MIN,
     MIN_SCAN_INTERVAL_MIN,
     SYSTEM_BOILER,
+    uid_prefix,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -46,25 +47,40 @@ class ElcoRemoconCoordinator(DataUpdateCoordinator[RemoconData]):
             update_interval=timedelta(minutes=minutes),
             always_update=False,
         )
+        self.system_type: str = config_entry.data.get(CONF_SYSTEM_TYPE, DEFAULT_SYSTEM_TYPE)
+        self.gateway_id: str = config_entry.data[CONF_GATEWAY_ID]
+        self.zone: str = str(config_entry.data.get(CONF_ZONE, "1")).strip() or "1"
+        self.uid_prefix: str = uid_prefix(self.gateway_id, self.zone)
+        self._custom_name: str = (config_entry.data.get(CONF_NAME) or "").strip()
+        # With several entries on one gateway (one per heating zone), the first one
+        # created owns the plant-wide entities (outside temp, hot water, burner...).
+        same_gateway = [
+            e for e in hass.config_entries.async_entries(DOMAIN)
+            if e.data.get(CONF_GATEWAY_ID) == self.gateway_id
+        ]
+        self.is_primary: bool = not same_gateway or same_gateway[0].entry_id == config_entry.entry_id
         self.client = RemoconClient(
             email=config_entry.data[CONF_EMAIL],
             password=config_entry.data[CONF_PASSWORD],
-            gateway_id=config_entry.data[CONF_GATEWAY_ID],
-            zone=config_entry.data.get(CONF_ZONE, "1"),
-            system_type=config_entry.data.get(CONF_SYSTEM_TYPE, DEFAULT_SYSTEM_TYPE),
+            gateway_id=self.gateway_id,
+            zone=self.zone,
+            system_type=self.system_type,
+            fetch_plant_items=self.is_primary,
         )
-        self.system_type: str = config_entry.data.get(CONF_SYSTEM_TYPE, DEFAULT_SYSTEM_TYPE)
-        self.gateway_id: str = config_entry.data[CONF_GATEWAY_ID]
 
     @property
     def device_info(self) -> dict:
-        """Shared device info for all entities of this gateway."""
+        """Device shared by all entities of this entry (one device per heating zone)."""
         if self.system_type == SYSTEM_BOILER:
             name, model = "Remocon-Net Oil Boiler", "Oil boiler"
         else:
             name, model = "Remocon-Net Heat Pump", "Aerotop SPK"
+        if self.zone != "1":
+            name = f"{name} zone {self.zone}"
+        if self._custom_name:
+            name = self._custom_name
         return {
-            "identifiers": {(DOMAIN, self.gateway_id)},
+            "identifiers": {(DOMAIN, self.uid_prefix)},
             "name": name,
             "manufacturer": "Elco",
             "model": model,

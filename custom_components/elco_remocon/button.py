@@ -59,7 +59,7 @@ class ElcoButton(CoordinatorEntity[ElcoRemoconCoordinator], ButtonEntity):
     def __init__(self, coordinator: ElcoRemoconCoordinator, description: ElcoButtonDescription) -> None:
         super().__init__(coordinator)
         self.entity_description = description
-        self._attr_unique_id = f"{coordinator.gateway_id}_button_{description.key}"
+        self._attr_unique_id = f"{coordinator.uid_prefix}_button_{description.key}"
         self._attr_device_info = coordinator.device_info
 
     @property

@@ -11,16 +11,12 @@ Control and monitor your Elco heat pump (e.g. Aerotop SPK) through the Remocon-N
 
 ## Features
 
-- **Oil / gas boiler support** — Choose the system type (heat pump or oil/gas boiler) during setup; cooling and heat pump entities are hidden for boilers and the API requests are adapted to boilers
-- **Binary sensors** — Burner running (flame detected, boilers only)
-- **Hot water** — Water heater entity with tank temperature, comfort setpoint and operation mode (on / off)
-- **Mode buttons** — Auto / Comfort (day) / Reduced (night) / Off (frost protection) in one tap, the active mode is shown by the button icon
-- **Sensors** — Operating mode (Auto / Comfort / Reduced / Off)
-- **Update interval** — Number entity to set how often the cloud is polled, in minutes (1 to 1440), also available in the integration options
-- **Manual refresh** — "Refresh now" button to fetch the data immediately, without waiting for the interval
-- **Robust connection** — Tries both Remocon-Net data endpoints, shows the server's reply on errors, and an optional data call that fails no longer breaks the setup
-- **CLI tool** — `remocon.py` accepts `--system-type boiler` (or `"system_type": "boiler"` in `config.json`)
-- **Translations** — French added; English and German completed
+- **Climate entity** — Set target temperature, switch operation mode (Auto / Heat / Off), presets (Comfort / Reduced)
+- **Sensors** — Outside temperature, flow temperature, target temperature, system pressure
+- **Binary sensors** — Heating active, cooling active, heat pump running (heat pumps) / burner running (oil/gas boilers)
+- **Oil / gas boiler support** — choose the system type during setup; cooling and heat-pump entities are hidden, a *burner running* sensor is added (⚠️ experimental, see below)
+- **Config flow** — Easy setup directly in the Home Assistant UI
+- **CLI tool** — Standalone `remocon.py` for testing and debugging from the terminal
 
 ## Requirements
 
@@ -61,7 +57,14 @@ Restart Home Assistant.
    - **Password:** Your Remocon-Net login password
    - **Gateway ID:** Your system's gateway ID (see below)
    - **Zone:** Heating zone (default: 1)
+  - **Name:** optional, e.g. the place of the installation (becomes the device name)
   - **System type:** `Heat pump` or `Oil / gas boiler`
+
+### Several heating zones (or several installations)
+
+Each *Add Integration* creates one heating zone. To add a second zone, run **Add Integration → Remocon-Net** again with the same email, password and Gateway ID, **Zone = 2** and, if you like, a **Name** (e.g. `Vercorin`). A zone entry gives you its own climate entity, the four mode buttons, the `Operating mode`, `Desired` and `Reduced temperature` sensors, `Heating active`, the update interval and the refresh button. Whole-plant values (outside temperature, hot water, burner, pressure, flow temperature) are only created once per gateway, by the first entry. An installation with its own gateway is added the same way with its own Gateway ID, and keeps all its entities.
+
+> Zones above 1 are experimental: please report problems with the log line (`elco_remocon`).
 
 ### Finding your Gateway ID
 

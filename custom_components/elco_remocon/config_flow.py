@@ -8,7 +8,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
+from homeassistant.const import CONF_EMAIL, CONF_NAME, CONF_PASSWORD
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.selector import (
@@ -33,6 +33,7 @@ from .const import (
     MAX_SCAN_INTERVAL_MIN,
     MIN_SCAN_INTERVAL_MIN,
     SYSTEM_TYPES,
+    uid_prefix,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -81,18 +82,21 @@ class ElcoRemoconConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected exception during setup: %s", err)
                 errors["base"] = "no_data"
             else:
-                await self.async_set_unique_id(user_input[CONF_GATEWAY_ID])
+                gateway = user_input[CONF_GATEWAY_ID].strip()
+                zone = str(user_input.get(CONF_ZONE, DEFAULT_ZONE)).strip() or DEFAULT_ZONE
+                # One entry per (gateway, zone): add the integration again for another zone.
+                await self.async_set_unique_id(uid_prefix(gateway, zone))
                 self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=f"Elco {user_input[CONF_GATEWAY_ID]}",
-                    data=user_input,
-                )
+                name = (user_input.get(CONF_NAME) or "").strip()
+                title = name or f"Elco {gateway}" + (f" zone {zone}" if zone != DEFAULT_ZONE else "")
+                return self.async_create_entry(title=title, data=user_input)
 
         data_schema = vol.Schema({
             vol.Required(CONF_EMAIL): str,
             vol.Required(CONF_PASSWORD): str,
             vol.Required(CONF_GATEWAY_ID): str,
             vol.Optional(CONF_ZONE, default=DEFAULT_ZONE): str,
+            vol.Optional(CONF_NAME, default=""): str,
             vol.Required(CONF_SYSTEM_TYPE, default=DEFAULT_SYSTEM_TYPE): SelectSelector(
                 SelectSelectorConfig(
                     options=SYSTEM_TYPES,

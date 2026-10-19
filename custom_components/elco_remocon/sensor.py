@@ -37,6 +37,7 @@ class ElcoSensorDescription(SensorEntityDescription):
     suggested_display_precision: int = 1
     value_fn: Callable[[RemoconData], StateType]
     exists_fn: Callable[[RemoconData], bool] = lambda _: True
+    plant_level: bool = False  # whole-plant value: created once per gateway
 
 
 ZONE_MODE_STATES = {0: "protection", 1: "automatic", 2: "reduced", 3: "comfort"}
@@ -51,6 +52,7 @@ SENSORS: tuple[ElcoSensorDescription, ...] = (
     ),
     ElcoSensorDescription(
         key="outside_temp",
+        plant_level=True,
         translation_key="outside_temperature",
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -75,6 +77,7 @@ SENSORS: tuple[ElcoSensorDescription, ...] = (
     ),
     ElcoSensorDescription(
         key="flow_temp",
+        plant_level=True,
         translation_key="flow_temperature",
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -84,6 +87,7 @@ SENSORS: tuple[ElcoSensorDescription, ...] = (
     ),
     ElcoSensorDescription(
         key="system_pressure",
+        plant_level=True,
         translation_key="system_pressure",
         device_class=SensorDeviceClass.PRESSURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -95,6 +99,7 @@ SENSORS: tuple[ElcoSensorDescription, ...] = (
     ),
     ElcoSensorDescription(
         key="dhw_temp",
+        plant_level=True,
         translation_key="dhw_temperature",
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -112,12 +117,12 @@ async def async_setup_entry(
 ) -> None:
     """Set up Elco sensors."""
     coordinator: ElcoRemoconCoordinator = hass.data[DOMAIN][entry.entry_id]
-    gw_id = entry.data["gateway_id"]
+    gw_id = coordinator.uid_prefix
 
     entities = [
         ElcoSensor(coordinator, gw_id, desc)
         for desc in SENSORS
-        if desc.exists_fn(coordinator.data)
+        if desc.exists_fn(coordinator.data) and (coordinator.is_primary or not desc.plant_level)
     ]
     async_add_entities(entities)
 

@@ -7,7 +7,8 @@
           "email": "E-mail",
           "password": "Mot de passe",
           "gateway_id": "ID de la passerelle",
-          "zone": "Zone"
+          "zone": "Zone (1 pour le premier circuit de chauffage ; ajoutez à nouveau l'intégration pour une autre zone)",
+          "name": "Nom (facultatif)"
         },
         "description": "Intégration non officielle — connectez votre pompe à chaleur ou chaudière mazout/gaz Elco via le cloud Remocon-Net.",
         "title": "Remocon-Net (non officiel)"
