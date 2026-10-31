@@ -240,17 +240,24 @@ class RemoconClient:
         }
         last_err: Exception | None = None
         data: Any = None
-        for endpoint in self._PLANT_ENDPOINTS:
+        # Try the endpoint that worked last time first, so a gateway that only
+        # answers on the fallback does not log a 500 error on every poll.
+        endpoints = sorted(
+            self._PLANT_ENDPOINTS, key=lambda e: e != getattr(self, "_plant_endpoint", None)
+        )
+        for endpoint in endpoints:
             path = f"/R2/{endpoint}/GetData/{self._gateway_id}?umsys=si"
             try:
-                data = self._request("POST", path, json=payload)
+                data = self._request("POST", path, json=payload, log_errors=False)
             except RemoconConnectionError as err:
                 last_err = err
                 continue
             if data:
+                self._plant_endpoint = endpoint
                 break
         else:
             if last_err is not None:
+                _LOGGER.error("All Remocon GetData endpoints failed: %s", last_err)
                 raise last_err
         if not data:
             raise RemoconDataError("Empty data received from API")
