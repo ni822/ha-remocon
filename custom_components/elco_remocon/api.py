@@ -214,7 +214,10 @@ class RemoconClient:
         except requests.RequestException as err:
             err_msg = str(err)
             if getattr(err, "response", None) is not None:
-                err_msg += f" - Response: {err.response.text}"
+                # Remocon answers errors with a full HTML page: log only a short,
+                # whitespace-collapsed excerpt to keep the HA log readable.
+                excerpt = " ".join(err.response.text.split())[:200]
+                err_msg += f" - Response: {excerpt}"
             (_LOGGER.error if log_errors else _LOGGER.debug)(
                 "API Request failed (%s %s): %s", method, path.split("?")[0], err_msg
             )
